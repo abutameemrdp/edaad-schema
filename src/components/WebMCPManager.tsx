@@ -26,9 +26,7 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
             },
             required: ['name', 'type']
           }
-        },
-        x: { type: 'number', description: 'Optional X position on canvas (0-1000)' },
-        y: { type: 'number', description: 'Optional Y position on canvas (0-1000)' }
+        }
       },
       required: ['tableName', 'columns']
     },
@@ -38,10 +36,10 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
       setSchema(prev => {
         if (prev.find(t => t.tableName === input.tableName)) {
           message = `Table ${input.tableName} updated successfully.`;
-          return prev.map(t => t.tableName === input.tableName ? { ...t, columns: input.columns, x: input.x || t.x, y: input.y || t.y } : t);
+          return prev.map(t => t.tableName === input.tableName ? { ...t, columns: input.columns } : t);
         }
         message = `Table ${input.tableName} created successfully.`;
-        return [...prev, { tableName: input.tableName, columns: input.columns, relations: [], x: input.x || Math.floor(Math.random()*500), y: input.y || Math.floor(Math.random()*500) }];
+        return [...prev, { tableName: input.tableName, columns: input.columns, relations: [] }];
       });
       setTimeout(() => setIsSimulating(false), 1000);
       return message;
