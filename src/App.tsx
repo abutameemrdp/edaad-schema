@@ -1,29 +1,47 @@
-import { useState } from 'react'
-import { SchemaCanvas } from './components/SchemaCanvas'
-import { WebMCPManager } from './components/WebMCPManager'
-import './index.css'
+﻿import { useRef, useState } from "react";
+import { SchemaCanvas } from "./components/SchemaCanvas";
+import { WebMCPManager } from "./components/WebMCPManager";
+import { Toolbar } from "./components/Toolbar";
+import { EmptyState } from "./components/EmptyState";
+import "./index.css";
 
 function App() {
-  const [schema, setSchema] = useState<any[]>([])
-  const [isSimulating, setIsSimulating] = useState(false)
+  const [schema, setSchema] = useState<any[]>([]);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const fitViewRef = useRef<(() => void) | null>(null);
+
+  const handleClear = () => setSchema([]);
+  const handleFitView = () => fitViewRef.current?.();
 
   return (
     <>
       <WebMCPManager schema={schema} setSchema={setSchema} setIsSimulating={setIsSimulating} />
-      
-      <div className="app-header glass-panel" style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <h2 style={{ margin: 0, color: 'var(--accent-color)' }}>✨ Edaad AI Schema Architect</h2>
-          <span style={{ background: 'rgba(88, 166, 255, 0.2)', color: 'var(--accent-color)', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>WebMCP Ready</span>
+
+      <div className="app-header glass-panel">
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <h2 style={{ margin: 0, color: "var(--accent-color)", fontSize: "18px" }}>
+            ✨ Edaad Schema Architect
+          </h2>
+          <span className="webmcp-pill">WebMCP</span>
         </div>
-        <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-          {isSimulating ? <span className="ai-thinking">🤖 AI is thinking...</span> : schema.length === 0 ? 'التطبيق جاهز لتلقي أوامر WebMCP' : `${schema.length} جداول تم إنشاؤها`}
+        <div style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
+          {isSimulating
+            ? <span className="ai-thinking">🤖 الذكاء الاصطناعي يعمل...</span>
+            : schema.length === 0
+              ? "في انتظار أوامر ChatGPT عبر WebMCP"
+              : `${schema.length} جداول تم إنشاؤها`}
         </div>
       </div>
 
-      <SchemaCanvas schema={schema} />
+      <Toolbar schema={schema} onClear={handleClear} onFitView={handleFitView} />
+
+      {schema.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <SchemaCanvas schema={schema} onFitViewRef={fitViewRef} />
+      )}
     </>
-  )
+  );
 }
 
-export default App
+export default App;
