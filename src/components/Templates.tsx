@@ -1,4 +1,11 @@
-﻿interface Template {
+﻿export const TEMPLATE_ICONS: Record<string, string> = {
+  "E-Commerce": "🛒",
+  "Blog": "📝",
+  "Social Media": "📱",
+  "LMS": "🏫",
+};
+
+interface Template {
   name: string;
   icon: string;
   description: string;
@@ -57,7 +64,7 @@ const TEMPLATES: Template[] = [
 ];
 
 interface TemplatesProps {
-  onSelect: (tables: any[]) => void;
+  onSelect: (tables: any[], name: string) => void;
   onClose: () => void;
 }
 
@@ -71,7 +78,7 @@ export function Templates({ onSelect, onClose }: TemplatesProps) {
         </div>
         <div className="templates-grid">
           {TEMPLATES.map(t => (
-            <button key={t.name} className="template-card" onClick={() => { onSelect(t.tables); onClose(); }}>
+            <button key={t.name} className="template-card" onClick={() => { onSelect(t.tables, t.name); onClose(); }}>
               <span className="template-icon">{t.icon}</span>
               <span className="template-name">{t.name}</span>
               <span className="template-desc">{t.description}</span>
@@ -83,3 +90,4 @@ export function Templates({ onSelect, onClose }: TemplatesProps) {
     </div>
   );
 }
+

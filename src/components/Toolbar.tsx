@@ -9,7 +9,7 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onSetSchema: (tables: any[]) => void;
+  onSetSchema: (tables: any[], name: string) => void;
 }
 
 type ExportFormat = "postgresql" | "mysql" | "sqlite" | "prisma" | "drizzle" | "typescript";
@@ -185,3 +185,4 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
     </>
   );
 }
+

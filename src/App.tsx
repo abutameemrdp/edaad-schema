@@ -1,8 +1,9 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SchemaCanvas } from "./components/SchemaCanvas";
 import { WebMCPManager } from "./components/WebMCPManager";
 import { Toolbar } from "./components/Toolbar";
 import { EmptyState } from "./components/EmptyState";
+import { TEMPLATE_ICONS } from "./components/Templates";
 import "./index.css";
 
 const MAX_HISTORY = 50;
@@ -31,6 +32,7 @@ function App() {
   const [history, setHistory] = useState<any[][]>([]);
   const [future, setFuture] = useState<any[][]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const fitViewRef = useRef<(() => void) | null>(null);
 
   // Wrap setSchema to also push to history
@@ -74,9 +76,9 @@ function App() {
   }, [undo, redo]);
 
   const warnings = getValidationWarnings(schema);
-  const handleClear = () => setSchema([]);
+  const handleClear = () => { setSchema([]); setActiveTemplate(null); };
   const handleFitView = () => fitViewRef.current?.();
-  const handleSetSchema = (tables: any[]) => setSchema(tables);
+  const handleSetSchema = (tables: any[], templateName?: string) => { setSchema(tables); setActiveTemplate(templateName ?? null); };
 
   return (
     <>
@@ -88,6 +90,11 @@ function App() {
             ✨ Edaad Schema Architect
           </h2>
           <span className="webmcp-pill">WebMCP</span>
+          {activeTemplate && (
+            <span className="template-active-pill">
+              {TEMPLATE_ICONS[activeTemplate] ?? "📋"} {activeTemplate}
+            </span>
+          )}
           {warnings.length > 0 && (
             <span className="warning-pill" title={warnings.join("\n")}>
               ⚠️ {warnings.length}

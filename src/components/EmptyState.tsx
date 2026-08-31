@@ -2,7 +2,7 @@
 import { Templates } from "./Templates";
 
 interface EmptyStateProps {
-  onSelectTemplate: (tables: any[]) => void;
+  onSelectTemplate: (tables: any[], name: string) => void;
 }
 
 export function EmptyState({ onSelectTemplate }: EmptyStateProps) {
@@ -43,3 +43,4 @@ export function EmptyState({ onSelectTemplate }: EmptyStateProps) {
     </>
   );
 }
+
