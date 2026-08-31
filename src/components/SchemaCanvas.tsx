@@ -46,50 +46,55 @@ export const SchemaCanvas = ({ schema }: { schema: any[] }) => {
     const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
 
     useEffect(() => {
-        if (!schema || schema.length === 0) return;
+        if (!schema) return;
 
-        const initialNodes: any[] = [];
-        const initialEdges: any[] = [];
+        const cols = Math.ceil(Math.sqrt(Math.max(schema.length, 1)));
+        const spacingX = 350;
+        const spacingY = 300;
 
-        // Basic grid layout algorithm
-        const cols = Math.ceil(Math.sqrt(schema.length));
-        const spacingX = 320;
-        const spacingY = 280;
+        setNodes((currentNodes) => {
+            const newNodes = schema.map((table, index) => {
+                const existingNode = currentNodes.find((n: any) => n.id === table.tableName);
+                
+                // If the node already exists, preserve its dragged position!
+                // Otherwise, calculate a grid position for the new node.
+                const x = existingNode ? existingNode.position.x : ((index % cols) * spacingX + 50);
+                const y = existingNode ? existingNode.position.y : (Math.floor(index / cols) * spacingY + 50);
 
-        schema.forEach((table, index) => {
-            const x = table.x ?? ((index % cols) * spacingX + 50);
-            const y = table.y ?? (Math.floor(index / cols) * spacingY + 50);
-
-            initialNodes.push({
-                id: table.tableName,
-                type: 'tableNode',
-                position: { x, y },
-                data: {
-                    label: table.tableName,
-                    columns: table.columns
-                }
+                return {
+                    id: table.tableName,
+                    type: 'tableNode',
+                    position: { x, y },
+                    data: {
+                        label: table.tableName,
+                        columns: table.columns
+                    }
+                };
             });
-
-            // Relations
-            if (table.relations) {
-                table.relations.forEach((rel: any) => {
-                    initialEdges.push({
-                        id: `e-${table.tableName}-${rel.targetTable}`,
-                        source: table.tableName,
-                        target: rel.targetTable,
-                        animated: true,
-                        style: { stroke: 'var(--accent-color)', strokeWidth: 2 },
-                        markerEnd: {
-                            type: MarkerType.ArrowClosed,
-                            color: 'var(--accent-color)',
-                        },
-                    });
-                });
-            }
+            return newNodes;
         });
 
-        setNodes(initialNodes);
-        setEdges(initialEdges);
+        setEdges(() => {
+            const newEdges: any[] = [];
+            schema.forEach(table => {
+                if (table.relations) {
+                    table.relations.forEach((rel: any) => {
+                        newEdges.push({
+                            id: `e-${table.tableName}-${rel.targetTable}`,
+                            source: table.tableName,
+                            target: rel.targetTable,
+                            animated: true,
+                            style: { stroke: 'var(--accent-color)', strokeWidth: 2 },
+                            markerEnd: {
+                                type: MarkerType.ArrowClosed,
+                                color: 'var(--accent-color)',
+                            },
+                        });
+                    });
+                }
+            });
+            return newEdges;
+        });
     }, [schema, setNodes, setEdges]);
 
     const onConnect = useCallback((params: any) => setEdges((eds: any) => addEdge(params, eds)), [setEdges]);
