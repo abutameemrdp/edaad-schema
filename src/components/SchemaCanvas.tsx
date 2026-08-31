@@ -20,7 +20,7 @@ const TableNode = ({ data }: { data: any }) => {
     return (
         <div className="react-flow__node-tableNode">
             <Handle type="target" position={Position.Top} style={{ background: 'var(--accent-color)' }} />
-            <div style={{ background: 'var(--node-header)', padding: '12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', cursor: 'grab' }}>
+            <div className="custom-drag-handle" style={{ background: 'var(--node-header)', padding: '12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', cursor: 'grab', touchAction: 'none' }}>
                 <span>{data.label}</span>
             </div>
             <div style={{ padding: '8px' }}>
@@ -51,7 +51,8 @@ const FlowLayout = ({ schema }: { schema: any[] }) => {
     useEffect(() => {
         if (!schema) return;
 
-        const cols = Math.ceil(Math.sqrt(Math.max(schema.length, 1)));
+        // FIXED: Use a constant number of columns so indices don't wrap around unpredictably!
+        const cols = 4;
         const spacingX = 350;
         const spacingY = 300;
 
@@ -66,6 +67,7 @@ const FlowLayout = ({ schema }: { schema: any[] }) => {
                     id: table.tableName,
                     type: 'tableNode',
                     position: { x, y },
+                    dragHandle: '.custom-drag-handle',
                     data: {
                         label: table.tableName,
                         columns: table.columns
@@ -97,7 +99,6 @@ const FlowLayout = ({ schema }: { schema: any[] }) => {
             return newEdges;
         });
         
-        // Auto fit view after a small delay to let nodes render
         setTimeout(() => {
             fitView({ padding: 0.2, duration: 800 });
         }, 100);
