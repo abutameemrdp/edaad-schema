@@ -38,7 +38,7 @@ export const webmcpTools = [
   }
 ];
 
-export function registerWebMCP(callbacks) {
+export function registerWebMCP(callbacks: any) {
   if (typeof window !== 'undefined') {
     const doc = (window as any).document;
     const nav = (window as any).navigator;
@@ -46,7 +46,7 @@ export function registerWebMCP(callbacks) {
     if (doc && !doc.modelContext) doc.modelContext = {};
     if (nav && !nav.modelContext) nav.modelContext = {};
     
-    const registerTool = (tool) => {
+    const registerTool = (tool: any) => {
       console.log('Registered WebMCP tool:', tool.name);
     };
 
@@ -56,7 +56,7 @@ export function registerWebMCP(callbacks) {
     webmcpTools.forEach(toolDef => {
       const toolImpl = {
         ...toolDef,
-        execute: async (input) => {
+        execute: async (input: any) => {
           if (toolDef.name === 'create_table' && callbacks.onCreateTable) {
             return await callbacks.onCreateTable(input);
           }
