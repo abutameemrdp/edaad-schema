@@ -37,21 +37,15 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
 
-@keyframes tableSpawn {
-  0% { transform: scale(0.8) translateY(20px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
-}
-
 .react-flow__node-tableNode {
   border-radius: 10px; overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   border: 1px solid var(--border-color); background: var(--node-bg);
-  min-width: 240px; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  animation: tableSpawn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  min-width: 240px; transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .react-flow__node-tableNode.selected, .react-flow__node-tableNode:hover {
   border-color: var(--accent-color);
-  box-shadow: 0 8px 30px rgba(88, 166, 255, 0.25); transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(88, 166, 255, 0.25);
 }
 .react-flow__handle {
   width: 12px; height: 12px; background-color: var(--accent-color);
