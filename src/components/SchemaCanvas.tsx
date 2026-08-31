@@ -10,6 +10,8 @@ import {
   Handle,
   Position,
   MarkerType,
+  ReactFlowProvider,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -18,7 +20,7 @@ const TableNode = ({ data }: { data: any }) => {
     return (
         <div className="react-flow__node-tableNode">
             <Handle type="target" position={Position.Top} style={{ background: 'var(--accent-color)' }} />
-            <div style={{ background: 'var(--node-header)', padding: '12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ background: 'var(--node-header)', padding: '12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', cursor: 'grab' }}>
                 <span>{data.label}</span>
             </div>
             <div style={{ padding: '8px' }}>
@@ -41,9 +43,10 @@ const nodeTypes = {
     tableNode: TableNode,
 };
 
-export const SchemaCanvas = ({ schema }: { schema: any[] }) => {
+const FlowLayout = ({ schema }: { schema: any[] }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
+    const { fitView } = useReactFlow();
 
     useEffect(() => {
         if (!schema) return;
@@ -56,8 +59,6 @@ export const SchemaCanvas = ({ schema }: { schema: any[] }) => {
             const newNodes = schema.map((table, index) => {
                 const existingNode = currentNodes.find((n: any) => n.id === table.tableName);
                 
-                // If the node already exists, preserve its dragged position!
-                // Otherwise, calculate a grid position for the new node.
                 const x = existingNode ? existingNode.position.x : ((index % cols) * spacingX + 50);
                 const y = existingNode ? existingNode.position.y : (Math.floor(index / cols) * spacingY + 50);
 
@@ -95,29 +96,43 @@ export const SchemaCanvas = ({ schema }: { schema: any[] }) => {
             });
             return newEdges;
         });
-    }, [schema, setNodes, setEdges]);
+        
+        // Auto fit view after a small delay to let nodes render
+        setTimeout(() => {
+            fitView({ padding: 0.2, duration: 800 });
+        }, 100);
+    }, [schema, setNodes, setEdges, fitView]);
 
     const onConnect = useCallback((params: any) => setEdges((eds: any) => addEdge(params, eds)), [setEdges]);
 
     return (
+        <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            fitView
+            colorMode="dark"
+        >
+            <MiniMap 
+                nodeColor="var(--node-bg)"
+                maskColor="rgba(0,0,0,0.5)"
+            />
+            <Controls />
+            <Background color="var(--border-color)" gap={16} />
+        </ReactFlow>
+    );
+};
+
+export const SchemaCanvas = ({ schema }: { schema: any[] }) => {
+    return (
         <div style={{ width: '100vw', height: '100vh', background: 'var(--bg-color)' }}>
-            <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                nodeTypes={nodeTypes}
-                fitView
-                colorMode="dark"
-            >
-                <MiniMap 
-                    nodeColor="var(--node-bg)"
-                    maskColor="rgba(0,0,0,0.5)"
-                />
-                <Controls />
-                <Background color="var(--border-color)" gap={16} />
-            </ReactFlow>
+            <ReactFlowProvider>
+                <FlowLayout schema={schema} />
+            </ReactFlowProvider>
         </div>
     );
+};
 };
