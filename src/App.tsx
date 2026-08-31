@@ -68,7 +68,7 @@ function App() {
       
       if (p.includes('user') || p.includes('product') || p.includes('order')) {
         // Execute tools as an AI would
-        const createTable = (window as any).document.modelContext?.registerTool;
+        // variable removed
         // In a real scenario, the browser intercepts this, but here we just trigger the registered callbacks directly for the demo
         
         setSchema(prev => [
