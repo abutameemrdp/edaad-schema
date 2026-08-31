@@ -135,4 +135,3 @@ export const SchemaCanvas = ({ schema }: { schema: any[] }) => {
         </div>
     );
 };
-};
