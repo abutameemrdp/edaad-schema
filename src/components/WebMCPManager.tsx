@@ -177,5 +177,24 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
     }
   });
 
+
+  // 8. suggest_improvements
+  useWebMCP({
+    name: "suggest_improvements",
+    description: "Analyze the current schema and suggest improvements such as missing timestamps, missing primary keys, or unlinked tables.",
+    inputSchema: { type: "object", properties: {} },
+    execute: async () => {
+      if (schema.length === 0) return "Schema is empty. Create some tables first.";
+      const suggestions: string[] = [];
+      schema.forEach(t => {
+        if (!(t.columns ?? []).some((c: any) => c.isPrimary)) suggestions.push(`- Table "${t.tableName}" has no PRIMARY KEY.`);
+        if (!(t.columns ?? []).some((c: any) => ["created_at","createdAt","created"].includes(c.name))) suggestions.push(`- Table "${t.tableName}" is missing a created_at timestamp.`);
+        if (!(t.columns ?? []).some((c: any) => ["updated_at","updatedAt","updated"].includes(c.name))) suggestions.push(`- Table "${t.tableName}" is missing an updated_at timestamp.`);
+      });
+      if (suggestions.length === 0) return "Schema looks great! No improvements needed.";
+      return "Suggested improvements:\n" + suggestions.join("\n");
+    }
+  });
   return null;
 }
+
