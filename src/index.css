@@ -303,6 +303,13 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; }
 }
 .tb-btn-purple:hover { background: rgba(188,140,255,0.22); }
 
+.tb-btn-orange {
+  background: rgba(251,146,60,0.12);
+  border-color: rgba(251,146,60,0.4);
+  color: #fb923c;
+}
+.tb-btn-orange:hover { background: rgba(251,146,60,0.22); }
+
 /* Disabled undo/redo */
 .tb-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 

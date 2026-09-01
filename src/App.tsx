@@ -79,6 +79,17 @@ function App() {
   const handleClear = () => { setSchema([]); setActiveTemplate(null); };
   const handleFitView = () => fitViewRef.current?.();
   const handleSetSchema = (tables: any[], templateName?: string) => { setSchema(tables); setActiveTemplate(templateName ?? null); };
+  const handleImportSchema = (tables: any[]) => {
+    setSchema(prev => {
+      const merged = [...prev];
+      tables.forEach(newTable => {
+        const idx = merged.findIndex(t => t.tableName === newTable.tableName);
+        if (idx >= 0) merged[idx] = newTable;
+        else merged.push(newTable);
+      });
+      return merged;
+    });
+  };
 
   return (
     <>
@@ -119,6 +130,7 @@ function App() {
         canUndo={history.length > 0}
         canRedo={future.length > 0}
         onSetSchema={handleSetSchema}
+        onImportSchema={handleImportSchema}
       />
 
       {schema.length === 0 ? (

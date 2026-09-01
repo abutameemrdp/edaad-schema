@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useRef, useState } from "react";
 import { Templates } from "./Templates";
 
 interface ToolbarProps {
@@ -10,9 +10,11 @@ interface ToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onSetSchema: (tables: any[], name: string) => void;
+  onImportSchema: (tables: any[]) => void;
 }
 
 type ExportFormat = "postgresql" | "mysql" | "sqlite" | "prisma" | "drizzle" | "typescript";
+type ImportFormat = "sql" | "prisma";
 
 function generateSQL(schema: any[], dialect: "postgresql" | "mysql" | "sqlite"): string {
   if (!schema || schema.length === 0) return "-- No tables in schema";
@@ -103,17 +105,77 @@ function getCode(schema: any[], format: ExportFormat): string {
   }
 }
 
+// ─── Import Parsers (mirrored from WebMCPManager) ────────────────────────────
+function parseSQLToTables(sql: string): any[] {
+  const tables: any[] = [];
+  const tableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"']?(\w+)[`"']?\s*\(([^;]+)\)/gi;
+  let m;
+  while ((m = tableRegex.exec(sql)) !== null) {
+    const tableName = m[1];
+    const body = m[2];
+    const columns: any[] = [];
+    for (const line of body.split(",").map(l => l.trim()).filter(Boolean)) {
+      if (/^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|INDEX|CHECK|CONSTRAINT)/i.test(line)) continue;
+      const col = line.match(/^[`"']?(\w+)[`"']?\s+(\w+(?:\(\d+(?:,\d+)?\))?)/i);
+      if (!col) continue;
+      let type = col[2].toUpperCase();
+      if (/^VARCHAR|^CHAR|^NVARCHAR/.test(type)) type = "VARCHAR";
+      else if (/^INT|^BIGINT|^SMALLINT|^TINYINT/.test(type)) type = "INTEGER";
+      else if (/^FLOAT|^DOUBLE|^NUMERIC|^DECIMAL/.test(type)) type = "DECIMAL";
+      else if (/^BOOL/.test(type)) type = "BOOLEAN";
+      else if (/^DATETIME|^TIMESTAMP|^DATE/.test(type)) type = "TIMESTAMP";
+      else if (/^UUID/.test(type)) type = "UUID";
+      else if (/^TEXT|^CLOB/.test(type)) type = "TEXT";
+      columns.push({ name: col[1], type, isPrimary: /PRIMARY\s+KEY/i.test(line) });
+    }
+    if (columns.length > 0) tables.push({ tableName, columns, relations: [] });
+  }
+  return tables;
+}
+
+function parsePrismaToTables(text: string): any[] {
+  const tables: any[] = [];
+  const typeMap: Record<string, string> = {
+    String: "VARCHAR", Int: "INTEGER", Float: "DECIMAL",
+    Boolean: "BOOLEAN", DateTime: "TIMESTAMP", BigInt: "INTEGER", Decimal: "DECIMAL", Json: "TEXT",
+  };
+  const modelRegex = /model\s+(\w+)\s*\{([^}]+)\}/g;
+  let m;
+  while ((m = modelRegex.exec(text)) !== null) {
+    const tableName = m[1].toLowerCase();
+    const columns: any[] = [];
+    for (const line of m[2].split("\n").map(l => l.trim()).filter(Boolean)) {
+      if (line.startsWith("//") || line.startsWith("@@")) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length < 2) continue;
+      columns.push({
+        name: parts[0],
+        type: typeMap[parts[1].replace(/[?[\]]/g, "")] ?? "TEXT",
+        isPrimary: line.includes("@id")
+      });
+    }
+    if (columns.length > 0) tables.push({ tableName, columns, relations: [] });
+  }
+  return tables;
+}
+
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   postgresql: "PostgreSQL", mysql: "MySQL", sqlite: "SQLite",
   prisma: "Prisma", drizzle: "Drizzle ORM", typescript: "TypeScript",
 };
 
-export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, canRedo, onSetSchema }: ToolbarProps) {
+export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, canRedo, onSetSchema, onImportSchema }: ToolbarProps) {
   const [showExport, setShowExport] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [format, setFormat] = useState<ExportFormat>("postgresql");
+  const [importFormat, setImportFormat] = useState<ImportFormat>("sql");
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState("");
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalColumns = schema.reduce((s, t) => s + (t.columns?.length ?? 0), 0);
   const totalRelations = schema.reduce((s, t) => s + (t.relations?.length ?? 0), 0);
@@ -133,6 +195,35 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
     setTimeout(() => setShared(false), 2000);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "prisma") setImportFormat("prisma");
+    else setImportFormat("sql");
+    const reader = new FileReader();
+    reader.onload = ev => setImportText(ev.target?.result as string ?? "");
+    reader.readAsText(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const handleImport = () => {
+    setImportError("");
+    setImportSuccess("");
+    if (!importText.trim()) { setImportError("الرجاء لصق النص أو رفع ملف."); return; }
+    const tables = importFormat === "prisma"
+      ? parsePrismaToTables(importText)
+      : parseSQLToTables(importText);
+    if (tables.length === 0) {
+      setImportError("لم يتم العثور على جداول صالحة. تأكد من صحة الصيغة.");
+      return;
+    }
+    onImportSchema(tables);
+    setImportSuccess(`✅ تم استيراد ${tables.length} جدول: ${tables.map(t => t.tableName).join("، ")}`);
+    setTimeout(() => { setShowImport(false); setImportText(""); setImportSuccess(""); }, 1800);
+  };
+
   return (
     <>
       <div className="toolbar glass-panel">
@@ -147,6 +238,7 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
           <button className="tb-btn" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">↪</button>
           <button className="tb-btn" onClick={onFitView} title="Fit View">⛶ عرض كامل</button>
           <button className="tb-btn tb-btn-purple" onClick={() => setShowTemplates(true)}>📋 قوالب</button>
+          <button className="tb-btn tb-btn-orange" onClick={() => { setShowImport(true); setImportError(""); setImportSuccess(""); }}>📥 استيراد</button>
           <button className="tb-btn tb-btn-blue" onClick={() => setShowExport(true)}>⬇️ تصدير</button>
           {schema.length > 0 && (
             <button className="tb-btn tb-btn-green" onClick={shareURL}>
@@ -158,6 +250,77 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
       </div>
 
       {showTemplates && <Templates onSelect={onSetSchema} onClose={() => setShowTemplates(false)} />}
+
+      {/* Import Modal */}
+      {showImport && (
+        <div className="modal-overlay" onClick={() => setShowImport(false)}>
+          <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: "700px" }}>
+            <div className="modal-header">
+              <h3>📥 استيراد مخطط</h3>
+              <button className="modal-close" onClick={() => setShowImport(false)}>✕</button>
+            </div>
+
+            {/* Format tabs */}
+            <div className="format-tabs" style={{ marginBottom: "16px" }}>
+              <button
+                className={`format-tab ${importFormat === "sql" ? "active" : ""}`}
+                onClick={() => setImportFormat("sql")}
+              >🗄️ SQL</button>
+              <button
+                className={`format-tab ${importFormat === "prisma" ? "active" : ""}`}
+                onClick={() => setImportFormat("prisma")}
+              >⚡ Prisma</button>
+            </div>
+
+            {/* File Upload */}
+            <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <button
+                className="tb-btn tb-btn-purple"
+                onClick={() => fileInputRef.current?.click()}
+              >📂 رفع ملف</button>
+              <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                {importFormat === "sql" ? "يقبل: .sql" : "يقبل: .prisma"}
+              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={importFormat === "sql" ? ".sql,.txt" : ".prisma,.txt"}
+                style={{ display: "none" }}
+                onChange={handleFileUpload}
+              />
+            </div>
+
+            {/* Text Area */}
+            <textarea
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
+              placeholder={
+                importFormat === "sql"
+                  ? `CREATE TABLE users (\n  id UUID PRIMARY KEY,\n  email VARCHAR,\n  created_at TIMESTAMP\n);\n\nCREATE TABLE posts (\n  id UUID PRIMARY KEY,\n  user_id UUID,\n  title VARCHAR\n);`
+                  : `model User {\n  id     String @id\n  email  String\n  posts  Post[]\n}\n\nmodel Post {\n  id     String @id\n  title  String\n}`
+              }
+              style={{
+                width: "100%", height: "220px", background: "var(--bg-secondary)",
+                border: "1px solid var(--border-color)", borderRadius: "8px",
+                color: "var(--text-primary)", fontFamily: "monospace", fontSize: "13px",
+                padding: "12px", resize: "vertical", boxSizing: "border-box"
+              }}
+            />
+
+            {importError && (
+              <div style={{ color: "#f87171", fontSize: "13px", marginTop: "8px" }}>⚠️ {importError}</div>
+            )}
+            {importSuccess && (
+              <div style={{ color: "#4ade80", fontSize: "13px", marginTop: "8px" }}>{importSuccess}</div>
+            )}
+
+            <div className="modal-footer">
+              <button className="tb-btn" onClick={() => setShowImport(false)}>إلغاء</button>
+              <button className="tb-btn tb-btn-blue" onClick={handleImport}>📥 استيراد إلى Canvas</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showExport && (
         <div className="modal-overlay" onClick={() => setShowExport(false)}>
