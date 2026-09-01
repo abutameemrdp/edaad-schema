@@ -1,4 +1,4 @@
-﻿export const TEMPLATE_ICONS: Record<string, string> = {
+export const TEMPLATE_ICONS: Record<string, string> = {
   "E-Commerce": "🛒",
   "Blog": "📝",
   "Social Media": "📱",
@@ -16,7 +16,7 @@ const TEMPLATES: Template[] = [
   {
     name: "E-Commerce",
     icon: "🛒",
-    description: "متجر إلكتروني كامل",
+    description: "Full e-commerce schema",
     tables: [
       { tableName: "users", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "email", type: "VARCHAR" }, { name: "name", type: "VARCHAR" }, { name: "created_at", type: "TIMESTAMP" }], relations: [] },
       { tableName: "categories", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "name", type: "VARCHAR" }, { name: "slug", type: "VARCHAR" }], relations: [] },
@@ -28,7 +28,7 @@ const TEMPLATES: Template[] = [
   {
     name: "Blog",
     icon: "📝",
-    description: "مدونة مع التعليقات والتصنيفات",
+    description: "Blog with comments and tags",
     tables: [
       { tableName: "users", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "username", type: "VARCHAR" }, { name: "email", type: "VARCHAR" }, { name: "bio", type: "TEXT" }], relations: [] },
       { tableName: "tags", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "name", type: "VARCHAR" }, { name: "slug", type: "VARCHAR" }], relations: [] },
@@ -40,7 +40,7 @@ const TEMPLATES: Template[] = [
   {
     name: "Social Media",
     icon: "📱",
-    description: "شبكة اجتماعية مع المتابعة والرسائل",
+    description: "Social media with follows and messages",
     tables: [
       { tableName: "users", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "username", type: "VARCHAR" }, { name: "email", type: "VARCHAR" }, { name: "avatar_url", type: "VARCHAR" }, { name: "created_at", type: "TIMESTAMP" }], relations: [] },
       { tableName: "posts", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "user_id", type: "UUID" }, { name: "content", type: "TEXT" }, { name: "image_url", type: "VARCHAR" }, { name: "created_at", type: "TIMESTAMP" }], relations: [{ targetTable: "users" }] },
@@ -52,7 +52,7 @@ const TEMPLATES: Template[] = [
   {
     name: "LMS",
     icon: "🏫",
-    description: "نظام تعليمي - دورات وطلاب",
+    description: "LMS with courses and students",
     tables: [
       { tableName: "users", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "name", type: "VARCHAR" }, { name: "email", type: "VARCHAR" }, { name: "role", type: "VARCHAR" }], relations: [] },
       { tableName: "courses", columns: [{ name: "id", type: "UUID", isPrimary: true }, { name: "instructor_id", type: "UUID" }, { name: "title", type: "VARCHAR" }, { name: "description", type: "TEXT" }, { name: "price", type: "DECIMAL" }], relations: [{ targetTable: "users" }] },
@@ -73,7 +73,7 @@ export function Templates({ onSelect, onClose }: TemplatesProps) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal glass-panel templates-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>📋 قوالب جاهزة</h3>
+          <h3>📋 Templates</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="templates-grid">
@@ -82,7 +82,7 @@ export function Templates({ onSelect, onClose }: TemplatesProps) {
               <span className="template-icon">{t.icon}</span>
               <span className="template-name">{t.name}</span>
               <span className="template-desc">{t.description}</span>
-              <span className="template-meta">{t.tables.length} جداول</span>
+              <span className="template-meta">{t.tables.length} tables</span>
             </button>
           ))}
         </div>

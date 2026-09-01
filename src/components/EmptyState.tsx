@@ -9,7 +9,7 @@ const PROMPTS = [
   { icon: "🛒", text: "\"Build an e-commerce schema with users, products, orders and reviews\"" },
   { icon: "📝", text: "\"Create a blog platform with posts, comments, tags and authors\"" },
   { icon: "🏢", text: "\"Design a multi-tenant SaaS schema with organizations, users and subscriptions\"" },
-  { icon: "📱", text: "\"أنشئ مخطط لتطبيق توصيل طعام مع المطاعم والمنتجات والطلبات\"" },
+  { icon: "📱", text: "\"Build a food delivery schema with restaurants, products and orders\"" },
   { icon: "🏥", text: "\"Build a hospital management schema with patients, doctors and appointments\"" },
   { icon: "📥", text: "\"Import this SQL file and fix the missing relations: [paste SQL]\"" },
 ];

@@ -21,7 +21,7 @@ function getValidationWarnings(schema: any[]): string[] {
   const warnings: string[] = [];
   schema.forEach(t => {
     if (!(t.columns ?? []).some((c: any) => c.isPrimary)) {
-      warnings.push(`جدول "${t.tableName}" بدون Primary Key`);
+      warnings.push(`Table "${t.tableName}" has no Primary Key`);
     }
   });
   return warnings;
@@ -114,10 +114,10 @@ function App() {
         </div>
         <div style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
           {isSimulating
-            ? <span className="ai-thinking">🤖 الذكاء الاصطناعي يعمل...</span>
+            ? <span className="ai-thinking">🤖 AI is thinking...</span>
             : schema.length === 0
-              ? "في انتظار أوامر ChatGPT عبر WebMCP"
-              : `${schema.length} جداول تم إنشاؤها`}
+              ? "Waiting for ChatGPT WebMCP commands"
+              : `${schema.length} tables created`}
         </div>
       </div>
 

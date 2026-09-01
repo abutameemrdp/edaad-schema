@@ -314,16 +314,16 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
   const handleImport = () => {
     setImportError("");
     setImportSuccess("");
-    if (!importText.trim()) { setImportError("الرجاء لصق النص أو رفع ملف."); return; }
+    if (!importText.trim()) { setImportError("Please paste text or upload a file."); return; }
     const tables = importFormat === "prisma"
       ? parsePrismaToTables(importText)
       : parseSQLToTables(importText);
     if (tables.length === 0) {
-      setImportError("لم يتم العثور على جداول صالحة. تأكد من صحة الصيغة.");
+      setImportError("No valid tables found. Please check the syntax.");
       return;
     }
     onImportSchema(tables);
-    setImportSuccess(`✅ تم استيراد ${tables.length} جدول: ${tables.map(t => t.tableName).join("، ")}`);
+    setImportSuccess(`✅ Imported ${tables.length} tables: ${tables.map(t => t.tableName).join(", ")}`);
     setTimeout(() => { setShowImport(false); setImportText(""); setImportSuccess(""); }, 1800);
   };
 
@@ -331,24 +331,24 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
     <>
       <div className="toolbar glass-panel">
         <div className="toolbar-stats">
-          <span className="stat-badge"><span className="stat-icon">📊</span>{schema.length} جداول</span>
-          <span className="stat-badge"><span className="stat-icon">📋</span>{totalColumns} أعمدة</span>
-          {totalRelations > 0 && <span className="stat-badge"><span className="stat-icon">🔗</span>{totalRelations} علاقات</span>}
+          <span className="stat-badge"><span className="stat-icon">📊</span>{schema.length} tables</span>
+          <span className="stat-badge"><span className="stat-icon">📋</span>{totalColumns} columns</span>
+          {totalRelations > 0 && <span className="stat-badge"><span className="stat-icon">🔗</span>{totalRelations} relations</span>}
         </div>
 
         <div className="toolbar-actions">
           <button className="tb-btn" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">↩</button>
           <button className="tb-btn" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">↪</button>
-          <button className="tb-btn" onClick={onFitView} title="Fit View">⛶ عرض كامل</button>
-          <button className="tb-btn tb-btn-purple" onClick={() => setShowTemplates(true)}>📋 قوالب</button>
-          <button className="tb-btn tb-btn-orange" onClick={() => { setShowImport(true); setImportError(""); setImportSuccess(""); }}>📥 استيراد</button>
-          <button className="tb-btn tb-btn-blue" onClick={() => setShowExport(true)}>⬇️ تصدير</button>
+          <button className="tb-btn" onClick={onFitView} title="Fit View">⛶ Fit View</button>
+          <button className="tb-btn tb-btn-purple" onClick={() => setShowTemplates(true)}>📋 Templates</button>
+          <button className="tb-btn tb-btn-orange" onClick={() => { setShowImport(true); setImportError(""); setImportSuccess(""); }}>📥 Import</button>
+          <button className="tb-btn tb-btn-blue" onClick={() => setShowExport(true)}>⬇️ Export</button>
           {schema.length > 0 && (
             <button className="tb-btn tb-btn-green" onClick={shareURL}>
-              {shared ? "✅ تم النسخ!" : "🔗 مشاركة"}
+              {shared ? "✅ Copied!" : "🔗 Share"}
             </button>
           )}
-          {schema.length > 0 && <button className="tb-btn tb-btn-danger" onClick={onClear}>🗑 مسح</button>}
+          {schema.length > 0 && <button className="tb-btn tb-btn-danger" onClick={onClear}>🗑 Clear</button>}
         </div>
       </div>
 
@@ -359,7 +359,7 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
         <div className="modal-overlay" onClick={() => setShowImport(false)}>
           <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: "700px" }}>
             <div className="modal-header">
-              <h3>📥 استيراد مخطط</h3>
+              <h3>📥 Import Schema</h3>
               <button className="modal-close" onClick={() => setShowImport(false)}>✕</button>
             </div>
 
@@ -380,9 +380,9 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
               <button
                 className="tb-btn tb-btn-purple"
                 onClick={() => fileInputRef.current?.click()}
-              >📂 رفع ملف</button>
+              >📂 Upload File</button>
               <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                {importFormat === "sql" ? "يقبل: .sql" : "يقبل: .prisma"}
+                {importFormat === "sql" ? "Accepts: .sql" : "Accepts: .prisma"}
               </span>
               <input
                 ref={fileInputRef}
@@ -418,8 +418,8 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
             )}
 
             <div className="modal-footer">
-              <button className="tb-btn" onClick={() => setShowImport(false)}>إلغاء</button>
-              <button className="tb-btn tb-btn-blue" onClick={handleImport}>📥 استيراد إلى Canvas</button>
+              <button className="tb-btn" onClick={() => setShowImport(false)}>Cancel</button>
+              <button className="tb-btn tb-btn-blue" onClick={handleImport}>📥 Import to Canvas</button>
             </div>
           </div>
         </div>
@@ -429,7 +429,7 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
         <div className="modal-overlay" onClick={() => setShowExport(false)}>
           <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: "800px" }}>
             <div className="modal-header">
-              <h3>⬇️ تصدير المخطط</h3>
+              <h3>⬇️ Export Schema</h3>
               <button className="modal-close" onClick={() => setShowExport(false)}>✕</button>
             </div>
             <div className="format-tabs">
@@ -442,7 +442,7 @@ export function Toolbar({ schema, onClear, onFitView, onUndo, onRedo, canUndo, c
             <pre className="sql-output">{code}</pre>
             <div className="modal-footer">
               <button className="tb-btn tb-btn-blue" onClick={copyCode}>
-                {copied ? "✅ تم النسخ!" : "📋 نسخ للحافظة"}
+                {copied ? "✅ Copied!" : "📋 Copy to Clipboard"}
               </button>
             </div>
           </div>
