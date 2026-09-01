@@ -4,7 +4,7 @@
 
 [![WebMCP](https://img.shields.io/badge/WebMCP-Enabled-blue)](https://webmcp.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Live Demo](https://img.shields.io/badge/Live-Demo-green)](https://edaad-schema-architect.netlify.app)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-green)](https://edaad-schema.saad-abushendi.workers.dev)
 
 ---
 
