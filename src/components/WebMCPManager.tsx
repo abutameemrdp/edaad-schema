@@ -580,6 +580,149 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
     }
   });
 
+  // \u2500\u2500\u2500 Schema Editing Tools \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+  // 13. delete_table
+  useWebMCP({
+    name: "delete_table",
+    description: "Remove a table and all its relations from the canvas. Also removes any relations in other tables that point to this table.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tableName: { type: "string", description: "Name of the table to delete" }
+      },
+      required: ["tableName"]
+    },
+    execute: async (input: any) => {
+      const exists = schema.find((t: any) => t.tableName === input.tableName);
+      if (!exists) {
+        const known = schema.map((t: any) => t.tableName).join(", ");
+        throw new Error(`Table "${input.tableName}" not found. Known tables: ${known}`);
+      }
+      setIsSimulating(true);
+      setSchema(prev =>
+        prev
+          .filter(t => t.tableName !== input.tableName)
+          .map(t => ({
+            ...t,
+            relations: (t.relations ?? []).filter((r: any) => r.targetTable !== input.tableName)
+          }))
+      );
+      setTimeout(() => setIsSimulating(false), 600);
+      return `\u2705 Table "${input.tableName}" and all its relations have been deleted from the canvas.`;
+    }
+  });
+
+  // 14. delete_relation
+  useWebMCP({
+    name: "delete_relation",
+    description: "Remove a specific relation arrow between two tables on the canvas.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceTable: { type: "string", description: "The table that has the foreign key (arrow origin)" },
+        targetTable: { type: "string", description: "The table being referenced (arrow destination)" }
+      },
+      required: ["sourceTable", "targetTable"]
+    },
+    execute: async (input: any) => {
+      const src = schema.find((t: any) => t.tableName === input.sourceTable);
+      if (!src) throw new Error(`Source table "${input.sourceTable}" not found.`);
+      const relExists = (src.relations ?? []).find((r: any) => r.targetTable === input.targetTable);
+      if (!relExists) throw new Error(`No relation found from "${input.sourceTable}" to "${input.targetTable}".`);
+      setIsSimulating(true);
+      setSchema(prev =>
+        prev.map(t =>
+          t.tableName === input.sourceTable
+            ? { ...t, relations: (t.relations ?? []).filter((r: any) => r.targetTable !== input.targetTable) }
+            : t
+        )
+      );
+      setTimeout(() => setIsSimulating(false), 600);
+      return `\u2705 Relation from "${input.sourceTable}" \u2192 "${input.targetTable}" has been removed.`;
+    }
+  });
+
+  // 15. rename_table
+  useWebMCP({
+    name: "rename_table",
+    description: "Rename an existing table. Automatically updates all relations in other tables that reference the old name.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        oldName: { type: "string", description: "Current name of the table" },
+        newName: { type: "string", description: "New name for the table" }
+      },
+      required: ["oldName", "newName"]
+    },
+    execute: async (input: any) => {
+      const exists = schema.find((t: any) => t.tableName === input.oldName);
+      if (!exists) {
+        const known = schema.map((t: any) => t.tableName).join(", ");
+        throw new Error(`Table "${input.oldName}" not found. Known tables: ${known}`);
+      }
+      const conflict = schema.find((t: any) => t.tableName === input.newName);
+      if (conflict) throw new Error(`Table "${input.newName}" already exists. Choose a different name.`);
+      setIsSimulating(true);
+      setSchema(prev =>
+        prev.map(t => {
+          // Rename the table itself
+          if (t.tableName === input.oldName) return { ...t, tableName: input.newName };
+          // Update any relations pointing to the old name
+          return {
+            ...t,
+            relations: (t.relations ?? []).map((r: any) =>
+              r.targetTable === input.oldName ? { ...r, targetTable: input.newName } : r
+            )
+          };
+        })
+      );
+      setTimeout(() => setIsSimulating(false), 600);
+      return `\u2705 Table renamed from "${input.oldName}" to "${input.newName}". All references updated.`;
+    }
+  });
+
+  // 16. get_table_details
+  useWebMCP({
+    name: "get_table_details",
+    description: "Get detailed information about a specific table: all columns with types and primary key status, all outgoing relations, and all incoming relations from other tables.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tableName: { type: "string", description: "Name of the table to inspect" }
+      },
+      required: ["tableName"]
+    },
+    execute: async (input: any) => {
+      const table = schema.find((t: any) => t.tableName === input.tableName);
+      if (!table) {
+        const known = schema.map((t: any) => t.tableName).join(", ");
+        throw new Error(`Table "${input.tableName}" not found. Known tables: ${known}`);
+      }
+      const cols = (table.columns ?? []).map((c: any) =>
+        `  - ${c.name}: ${c.type}${c.isPrimary ? " (PRIMARY KEY)" : ""}`
+      ).join("\n");
+      const outgoing = (table.relations ?? []).map((r: any) =>
+        `  - \u2192 ${r.targetTable}${r.label ? ` (via ${r.label})` : ""}`
+      ).join("\n") || "  (none)";
+      const incoming = schema
+        .filter((t: any) => t.tableName !== input.tableName)
+        .flatMap((t: any) => (t.relations ?? [])
+          .filter((r: any) => r.targetTable === input.tableName)
+          .map((r: any) => `  - ${t.tableName} \u2192 ${input.tableName}${r.label ? ` (via ${r.label})` : ""}`)
+        ).join("\n") || "  (none)";
+      return [
+        `**Table: ${input.tableName}**`,
+        `**Columns (${(table.columns ?? []).length}):**`,
+        cols,
+        `**Outgoing Relations:**`,
+        outgoing,
+        `**Incoming Relations:**`,
+        incoming
+      ].join("\n");
+    }
+  });
+
   return null;
 }
 
