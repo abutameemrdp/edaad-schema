@@ -183,14 +183,16 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
       required: ["sourceTable", "targetTable"]
     },
     execute: async (input: any) => {
+      // Read current schema directly for validation (avoids async state race)
+      const srcExists = schema.find((t: any) => t.tableName === input.sourceTable);
+      const tgtExists = schema.find((t: any) => t.tableName === input.targetTable);
+      if (!srcExists || !tgtExists) {
+        const known = schema.map((t: any) => t.tableName).join(", ");
+        throw new Error(`Tables not found. Requested: "${input.sourceTable}" → "${input.targetTable}". Known tables: ${known}`);
+      }
       setIsSimulating(true);
-      let success = false;
-      setSchema(prev => {
-        const srcExists = prev.find(t => t.tableName === input.sourceTable);
-        const tgtExists = prev.find(t => t.tableName === input.targetTable);
-        if (!srcExists || !tgtExists) return prev;
-        success = true;
-        return prev.map(t => {
+      setSchema(prev =>
+        prev.map(t => {
           if (t.tableName === input.sourceTable) {
             const relations = t.relations || [];
             if (!relations.find((r: any) => r.targetTable === input.targetTable)) {
@@ -198,11 +200,10 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
             }
           }
           return t;
-        });
-      });
-      setTimeout(() => setIsSimulating(false), 800);
-      if (success) return `Relation: ${input.sourceTable} → ${input.targetTable} added.`;
-      throw new Error(`Tables not found: ${input.sourceTable}, ${input.targetTable}`);
+        })
+      );
+      setTimeout(() => setIsSimulating(false), 600);
+      return `✅ Relation added: "${input.sourceTable}" → "${input.targetTable}"${input.label ? ` (${input.label})` : ""}.`;
     }
   });
 
@@ -258,13 +259,15 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
       required: ["tableName", "oldColumnName"]
     },
     execute: async (input: any) => {
+      // Read current schema directly for validation
+      const table = schema.find((t: any) => t.tableName === input.tableName);
+      if (!table) {
+        const known = schema.map((t: any) => t.tableName).join(", ");
+        throw new Error(`Table "${input.tableName}" not found. Known tables: ${known}`);
+      }
       setIsSimulating(true);
-      let success = false;
-      setSchema(prev => {
-        const table = prev.find(t => t.tableName === input.tableName);
-        if (!table) return prev;
-        success = true;
-        return prev.map(t => {
+      setSchema(prev =>
+        prev.map(t => {
           if (t.tableName === input.tableName) {
             return {
               ...t,
@@ -274,26 +277,97 @@ export function WebMCPManager({ schema, setSchema, setIsSimulating }: WebMCPMana
             };
           }
           return t;
-        });
-      });
+        })
+      );
+      setTimeout(() => setIsSimulating(false), 600);
+      return `✅ Column "${input.oldColumnName}" updated in "${input.tableName}".`;
+    }
+  });
+
+  // 6b. add_column  ─ NEW: adds a column to an existing table
+  useWebMCP({
+    name: "add_column",
+    description: "Add a new column to an existing table. Use this to add missing fields like created_at, updated_at, or any required column that doesn't exist yet.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tableName: { type: "string", description: "Name of the table to add the column to" },
+        columnName: { type: "string", description: "Name of the new column" },
+        columnType: { type: "string", description: "SQL type: VARCHAR, INTEGER, TIMESTAMP, BOOLEAN, TEXT, UUID, DECIMAL" },
+        isPrimary: { type: "boolean", description: "Whether this column is a primary key" }
+      },
+      required: ["tableName", "columnName", "columnType"]
+    },
+    execute: async (input: any) => {
+      const table = schema.find((t: any) => t.tableName === input.tableName);
+      if (!table) {
+        const known = schema.map((t: any) => t.tableName).join(", ");
+        throw new Error(`Table "${input.tableName}" not found. Known tables: ${known}`);
+      }
+      const already = (table.columns ?? []).find((c: any) => c.name === input.columnName);
+      if (already) return `Column "${input.columnName}" already exists in "${input.tableName}".`;
+      setIsSimulating(true);
+      setSchema(prev =>
+        prev.map(t =>
+          t.tableName === input.tableName
+            ? { ...t, columns: [...t.columns, { name: input.columnName, type: input.columnType, isPrimary: input.isPrimary ?? false }] }
+            : t
+        )
+      );
+      setTimeout(() => setIsSimulating(false), 600);
+      return `✅ Column "${input.columnName}" (${input.columnType}) added to "${input.tableName}".`;
+    }
+  });
+
+  // 6c. add_timestamps_to_all_tables  ─ NEW: batch-add created_at + updated_at
+  useWebMCP({
+    name: "add_timestamps_to_all_tables",
+    description: "Add created_at and updated_at TIMESTAMP columns to every table that is missing them. Call this once to fix all tables in a single operation.",
+    inputSchema: { type: "object", properties: {} },
+    execute: async () => {
+      if (schema.length === 0) return "Schema is empty. No tables to update.";
+      setIsSimulating(true);
+      const affected: string[] = [];
+      setSchema(prev =>
+        prev.map(t => {
+          let cols = [...t.columns];
+          let changed = false;
+          if (!cols.find((c: any) => /^created_at$/i.test(c.name))) {
+            cols.push({ name: "created_at", type: "TIMESTAMP", isPrimary: false });
+            changed = true;
+          }
+          if (!cols.find((c: any) => /^updated_at$/i.test(c.name))) {
+            cols.push({ name: "updated_at", type: "TIMESTAMP", isPrimary: false });
+            changed = true;
+          }
+          if (changed) affected.push(t.tableName);
+          return { ...t, columns: cols };
+        })
+      );
       setTimeout(() => setIsSimulating(false), 800);
-      if (success) return `Column "${input.oldColumnName}" updated in "${input.tableName}".`;
-      throw new Error(`Table "${input.tableName}" not found.`);
+      return `✅ Timestamps added to ${affected.length} tables: ${affected.join(", ")}.`;
     }
   });
 
   // 7. export_to_sql
   useWebMCP({
     name: "export_to_sql",
-    description: "Generate and return SQL CREATE TABLE statements for all tables in the schema.",
+    description: "Generate and return SQL CREATE TABLE statements with FOREIGN KEY constraints for all tables in the schema.",
     inputSchema: { type: "object", properties: {} },
     execute: async () => {
       if (schema.length === 0) return "No tables to export.";
       let sql = "-- Generated by Edaad AI Schema Architect\n\n";
       schema.forEach(t => {
         sql += `CREATE TABLE ${t.tableName} (\n`;
-        const cols = (t.columns ?? []).map((c: any) => `  ${c.name} ${c.type.toUpperCase()}${c.isPrimary ? " PRIMARY KEY" : ""}`);
-        sql += cols.join(",\n") + "\n);\n\n";
+        const cols = (t.columns ?? []).map((c: any) =>
+          `  ${c.name} ${c.type.toUpperCase()}${c.isPrimary ? " PRIMARY KEY" : ""}`
+        );
+        const fks = (t.relations ?? []).map((r: any) => {
+          const label = r.label || `${t.tableName}_id`;
+          return `  CONSTRAINT FK_${t.tableName}_${r.targetTable} FOREIGN KEY (${label}) REFERENCES ${r.targetTable}`;
+        });
+        const allLines = [...cols, ...fks];
+        sql += allLines.join(",\n") + "\n);\n\n";
       });
       return sql;
     }
