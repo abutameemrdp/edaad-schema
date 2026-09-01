@@ -6,38 +6,96 @@ interface WebMCPManagerProps {
   setIsSimulating: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-// ─── SQL Parser Utility ───────────────────────────────────────────────────────
+// ─── SQL Parser — supports Standard SQL + T-SQL (SQL Server) ────────────────
 function parseSQLToSchema(sql: string): any[] {
   const tables: any[] = [];
-  // Match CREATE TABLE blocks (case-insensitive)
-  const tableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"']?(\w+)[`"']?\s*\(([^;]+)\)/gi;
-  let tableMatch;
-  while ((tableMatch = tableRegex.exec(sql)) !== null) {
-    const tableName = tableMatch[1];
-    const body = tableMatch[2];
+
+  // Match: CREATE TABLE TableName( or CREATE TABLE [dbo].[TableName](
+  const tableStartRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:\[?\w+\]?\.)?\[?(\w+)\]?\s*\(/gi;
+
+  const SKIP_KEYWORDS = /^(CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|INDEX|CHECK|WITH|ON|ASC|DESC|NOT|NULL|DEFAULT|REFERENCES|IDENTITY|GO|CLUSTERED|NONCLUSTERED|GETDATE|DF_)$/i;
+
+  function normalizeType(raw: string): string {
+    const t = raw.toUpperCase();
+    if (/^N?VARCHAR|^N?CHAR/.test(t)) return "VARCHAR";
+    if (/^(SMALL|TINY|BIG)?INT(EGER)?$/.test(t)) return "INTEGER";
+    if (/^IDENTITY/.test(t)) return "INTEGER";
+    if (/^(FLOAT|DOUBLE|NUMERIC|DECIMAL|MONEY|SMALLMONEY)/.test(t)) return "DECIMAL";
+    if (/^BIT$/.test(t)) return "BOOLEAN";
+    if (/^(DATE(TIME2?)?|TIMESTAMP|TIME$|SMALLDATETIME)/.test(t)) return "TIMESTAMP";
+    if (/^DATE$/.test(t)) return "TIMESTAMP";
+    if (/^(UUID|UNIQUEIDENTIFIER)/.test(t)) return "UUID";
+    if (/^(N?TEXT|CLOB|VAR?BINARY|IMAGE|XML)/.test(t)) return "TEXT";
+    return "TEXT";
+  }
+
+  let m;
+  while ((m = tableStartRegex.exec(sql)) !== null) {
+    const tableName = m[1];
+    // openPos points to the '(' that ends the regex match
+    const openPos = m.index + m[0].length - 1;
+
+    // Walk forward to find the matching closing ')'
+    let depth = 0;
+    let closePos = -1;
+    for (let i = openPos; i < sql.length; i++) {
+      if (sql[i] === '(') depth++;
+      else if (sql[i] === ')') {
+        depth--;
+        if (depth === 0) { closePos = i; break; }
+      }
+    }
+    if (closePos === -1) continue;
+
+    const body = sql.substring(openPos + 1, closePos);
+
+    // ─ Extract PK columns from CONSTRAINT PRIMARY KEY (...) lines ─
+    const pkColumns = new Set<string>();
+    const pkRegex = /CONSTRAINT\s+\[?\w+\]?\s+PRIMARY\s+KEY\s+\w*\s*\(([^)]+)\)/gi;
+    let pk;
+    while ((pk = pkRegex.exec(body)) !== null) {
+      pk[1].split(',').forEach(c => {
+        const col = c.trim().replace(/\[|\]|\s.*/g, '');
+        if (col) pkColumns.add(col.toLowerCase());
+      });
+    }
+
+    // ─ Extract FK relations from FOREIGN KEY ... REFERENCES ... ─
+    const relations: any[] = [];
+    const fkRegex = /FOREIGN\s+KEY\s+\(\[?(\w+)\]?\)\s+REFERENCES\s+(?:\[?\w+\]?\.)?\[?(\w+)\]?/gi;
+    let fk;
+    while ((fk = fkRegex.exec(body)) !== null) {
+      const targetTable = fk[2];
+      if (!relations.find((r: any) => r.targetTable === targetTable)) {
+        relations.push({ targetTable, label: fk[1] });
+      }
+    }
+
+    // ─ Parse column definitions line by line ─
     const columns: any[] = [];
-    const lines = body.split(",").map(l => l.trim()).filter(Boolean);
-    for (const line of lines) {
-      // Skip constraints
-      if (/^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|INDEX|CHECK|CONSTRAINT)/i.test(line)) continue;
-      const colMatch = line.match(/^[`"']?(\w+)[`"']?\s+(\w+(?:\(\d+(?:,\d+)?\))?)/i);
+    for (const line of body.split('\n').map(l => l.trim()).filter(Boolean)) {
+      // Skip lines that start with SQL structural keywords or comments
+      if (/^\[?(CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|INDEX|CHECK|WITH)\b/i.test(line)) continue;
+      if (/^(GO|--|\*\/|\/\*|\)\s*$|REFERENCES\b)/i.test(line)) continue;
+
+      // Match: [ColName] TYPE or ColName TYPE
+      const colMatch = line.match(/^\[?(\w+)\]?\s+(\w+)/i);
       if (!colMatch) continue;
+
       const colName = colMatch[1];
-      const rawType = colMatch[2].toUpperCase();
-      // Normalize type
-      let type = rawType;
-      if (/^VARCHAR|^CHAR|^NVARCHAR/.test(rawType)) type = "VARCHAR";
-      else if (/^INT|^BIGINT|^SMALLINT|^TINYINT/.test(rawType)) type = "INTEGER";
-      else if (/^FLOAT|^DOUBLE|^NUMERIC|^DECIMAL/.test(rawType)) type = "DECIMAL";
-      else if (/^BOOL/.test(rawType)) type = "BOOLEAN";
-      else if (/^DATETIME|^TIMESTAMP|^DATE/.test(rawType)) type = "TIMESTAMP";
-      else if (/^UUID/.test(rawType)) type = "UUID";
-      else if (/^TEXT|^CLOB/.test(rawType)) type = "TEXT";
-      const isPrimary = /PRIMARY\s+KEY/i.test(line);
+      const rawType = colMatch[2];
+
+      // Skip if the "column name" is actually a SQL keyword
+      if (SKIP_KEYWORDS.test(colName)) continue;
+
+      const type = normalizeType(rawType);
+      const isPrimary = /PRIMARY\s+KEY/i.test(line) || pkColumns.has(colName.toLowerCase());
       columns.push({ name: colName, type, isPrimary });
     }
-    if (columns.length > 0) tables.push({ tableName, columns, relations: [] });
+
+    if (columns.length > 0) tables.push({ tableName, columns, relations });
   }
+
   return tables;
 }
 

@@ -105,33 +105,87 @@ function getCode(schema: any[], format: ExportFormat): string {
   }
 }
 
-// ─── Import Parsers (mirrored from WebMCPManager) ────────────────────────────
+// ─── Import Parsers — supports Standard SQL + T-SQL (SQL Server) ─────────────
 function parseSQLToTables(sql: string): any[] {
   const tables: any[] = [];
-  const tableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"']?(\w+)[`"']?\s*\(([^;]+)\)/gi;
-  let m;
-  while ((m = tableRegex.exec(sql)) !== null) {
-    const tableName = m[1];
-    const body = m[2];
-    const columns: any[] = [];
-    for (const line of body.split(",").map(l => l.trim()).filter(Boolean)) {
-      if (/^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|INDEX|CHECK|CONSTRAINT)/i.test(line)) continue;
-      const col = line.match(/^[`"']?(\w+)[`"']?\s+(\w+(?:\(\d+(?:,\d+)?\))?)/i);
-      if (!col) continue;
-      let type = col[2].toUpperCase();
-      if (/^VARCHAR|^CHAR|^NVARCHAR/.test(type)) type = "VARCHAR";
-      else if (/^INT|^BIGINT|^SMALLINT|^TINYINT/.test(type)) type = "INTEGER";
-      else if (/^FLOAT|^DOUBLE|^NUMERIC|^DECIMAL/.test(type)) type = "DECIMAL";
-      else if (/^BOOL/.test(type)) type = "BOOLEAN";
-      else if (/^DATETIME|^TIMESTAMP|^DATE/.test(type)) type = "TIMESTAMP";
-      else if (/^UUID/.test(type)) type = "UUID";
-      else if (/^TEXT|^CLOB/.test(type)) type = "TEXT";
-      columns.push({ name: col[1], type, isPrimary: /PRIMARY\s+KEY/i.test(line) });
-    }
-    if (columns.length > 0) tables.push({ tableName, columns, relations: [] });
+
+  const tableStartRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:\[?\w+\]?\.)?\[?(\w+)\]?\s*\(/gi;
+  const SKIP_KEYWORDS = /^(CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|INDEX|CHECK|WITH|ON|ASC|DESC|NOT|NULL|DEFAULT|REFERENCES|IDENTITY|GO|CLUSTERED|NONCLUSTERED|GETDATE|DF_)$/i;
+
+  function normalizeType(raw: string): string {
+    const t = raw.toUpperCase();
+    if (/^N?VARCHAR|^N?CHAR/.test(t)) return "VARCHAR";
+    if (/^(SMALL|TINY|BIG)?INT(EGER)?$/.test(t)) return "INTEGER";
+    if (/^IDENTITY/.test(t)) return "INTEGER";
+    if (/^(FLOAT|DOUBLE|NUMERIC|DECIMAL|MONEY|SMALLMONEY)/.test(t)) return "DECIMAL";
+    if (/^BIT$/.test(t)) return "BOOLEAN";
+    if (/^(DATE(TIME2?)?|TIMESTAMP|TIME$|SMALLDATETIME)/.test(t)) return "TIMESTAMP";
+    if (/^DATE$/.test(t)) return "TIMESTAMP";
+    if (/^(UUID|UNIQUEIDENTIFIER)/.test(t)) return "UUID";
+    if (/^(N?TEXT|CLOB|VAR?BINARY|IMAGE|XML)/.test(t)) return "TEXT";
+    return "TEXT";
   }
+
+  let m;
+  while ((m = tableStartRegex.exec(sql)) !== null) {
+    const tableName = m[1];
+    const openPos = m.index + m[0].length - 1;
+
+    let depth = 0;
+    let closePos = -1;
+    for (let i = openPos; i < sql.length; i++) {
+      if (sql[i] === '(') depth++;
+      else if (sql[i] === ')') { depth--; if (depth === 0) { closePos = i; break; } }
+    }
+    if (closePos === -1) continue;
+
+    const body = sql.substring(openPos + 1, closePos);
+
+    // Extract PK columns from CONSTRAINT PRIMARY KEY(...)
+    const pkColumns = new Set<string>();
+    const pkRegex = /CONSTRAINT\s+\[?\w+\]?\s+PRIMARY\s+KEY\s+\w*\s*\(([^)]+)\)/gi;
+    let pk;
+    while ((pk = pkRegex.exec(body)) !== null) {
+      pk[1].split(',').forEach(c => {
+        const col = c.trim().replace(/\[|\]|\s.*/g, '');
+        if (col) pkColumns.add(col.toLowerCase());
+      });
+    }
+
+    // Extract FK relations
+    const relations: any[] = [];
+    const fkRegex = /FOREIGN\s+KEY\s+\(\[?(\w+)\]?\)\s+REFERENCES\s+(?:\[?\w+\]?\.)?\[?(\w+)\]?/gi;
+    let fk;
+    while ((fk = fkRegex.exec(body)) !== null) {
+      const targetTable = fk[2];
+      if (!relations.find(r => r.targetTable === targetTable)) {
+        relations.push({ targetTable, label: fk[1] });
+      }
+    }
+
+    // Parse columns line by line
+    const columns: any[] = [];
+    for (const line of body.split('\n').map(l => l.trim()).filter(Boolean)) {
+      if (/^\[?(CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|INDEX|CHECK|WITH)\b/i.test(line)) continue;
+      if (/^(GO|--|\/\*|\*\/|\)\s*$|REFERENCES\b)/i.test(line)) continue;
+
+      const colMatch = line.match(/^\[?(\w+)\]?\s+(\w+)/i);
+      if (!colMatch) continue;
+
+      const colName = colMatch[1];
+      if (SKIP_KEYWORDS.test(colName)) continue;
+
+      const type = normalizeType(colMatch[2]);
+      const isPrimary = /PRIMARY\s+KEY/i.test(line) || pkColumns.has(colName.toLowerCase());
+      columns.push({ name: colName, type, isPrimary });
+    }
+
+    if (columns.length > 0) tables.push({ tableName, columns, relations });
+  }
+
   return tables;
 }
+
 
 function parsePrismaToTables(text: string): any[] {
   const tables: any[] = [];
